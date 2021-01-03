@@ -6,6 +6,60 @@ import io.reactivex.MaybeTransformer
 import io.reactivex.ObservableTransformer
 import io.reactivex.SingleTransformer
 
+/**
+ * Set of interfaces to create type-aware reactive transformers (aka "Strategy" OOP pattern applied to RxJava transformer types)
+ * giving ability to reuse and chain them together.
+ *
+ * Example:
+ *      // Low-level transformer classes to reuse
+ *      private class Retry(times: Int) : AnyTransformer { ... }
+ *      private class LogErrors : AnyTransformer { ... }
+ *
+ *      // High-level strategy function to handle errors across the app
+ *      fun handleErrors(): AnyTransformer =
+ *          Retry(3).andThen(LogErrors())
+ *
+ *      // Same strategy function applied to any RxJava type
+ *      observable.compose(handleErrors().forObservable())
+ *      single.compose(handleErrors().forSingle())
+ *      completable.compose(handleErrors().forCompletable())
+ *
+ * Usage:
+ *      Basic (simpler):
+ *      1. Create strategy class by implementing AnyTransformer, ValueTransformer or SequenceTransformer
+ *      2. Instantiate this class directly and use inside compose() method of RxJava types
+ *
+ *      Advanced (more scalable):
+ *      1. Create low-level transformer classes by implementing AnyTransformer, ValueTransformer or SequenceTransformer
+ *      2. Build high-level strategy function by chaining low-level transformers with andThen() function
+ *      3. Use this high-level function across the app inside compose() method of RxJava types
+ *
+ * Transformer types:
+ *      SequenceTransformer - deals with sequence of values (e.g. "distinct") so restricted to sequence types (Observable, Flowable)
+ *      ValueTransformer - deals with value (e.g. "map", "default value on error") so restricted to value types (Observable, Flowable, Single, Maybe)
+ *      AnyTransformer - deals with anything (e.g. "log", "retry on error") so applicable to all types (Observable, Flowable, Single, Maybe, Completable)
+ */
+
+interface AnyTransformer {
+    fun <T> forFlowable(): FlowableTransformer<T, T>
+    fun <T> forObservable(): ObservableTransformer<T, T>
+    fun <T> forSingle(): SingleTransformer<T, T>
+    fun <T> forMaybe(): MaybeTransformer<T, T>
+    fun forCompletable(): CompletableTransformer
+}
+
+interface ValueTransformer<T, R> {
+    fun forFlowable(): FlowableTransformer<T, R>
+    fun forObservable(): ObservableTransformer<T, R>
+    fun forSingle(): SingleTransformer<T, R>
+    fun forMaybe(): MaybeTransformer<T, R>
+}
+
+interface SequenceTransformer<T, R> {
+    fun forFlowable(): FlowableTransformer<T, R>
+    fun forObservable(): ObservableTransformer<T, R>
+}
+
 fun <T, R> AnyTransformer.andThen(next: SequenceTransformer<T, R>): SequenceTransformer<T, R> =
     AnyThenSequence(this, next)
 
